@@ -37,7 +37,7 @@ __global__ void CalcMagnitude(cuDoubleComplex *data) {
 __global__ void FindMaximum(cuDoubleComplex *data, long signalLength) {
     // use data[0].y as storage for maximum value
     data[0].y = 0;
-    
+
     int i;
     for (i = 0; i < signalLength; i++) {
         if (data[i].x > data[0].y) {
@@ -62,19 +62,19 @@ __global__ void Normalise(cuDoubleComplex *data) {
 void transform (long signalLength) {
     cuDoubleComplex *d_data, *h_data;
     cufftHandle plan;
-    
+
     // Multiple blocks and threads for parallel computation
     dim3 blocksParallel(ceil(((double)signalLength)/((double)MAX_THREADS_PER_BLOCK)), 1, 1);
     dim3 threadsParallel(MAX_THREADS_PER_BLOCK, 1, 1);
     // Single block and thread for sequential computation
     dim3 blocksSequential(1, 1, 1);
     dim3 threadsSequential(1, 1, 1);
-    
+
     // Allocate host side matrix
     h_data = (cuDoubleComplex *) malloc(sizeof(cuDoubleComplex) * signalLength);
     // Allocate GPU side matrix
     cudaMalloc((void**) &d_data, sizeof(cuDoubleComplex) * signalLength);
-    
+
     // (1) Generate set of data:
     // 3 sinusoids at 25, 50, 75 Hz + random noise.
     double samplingFrequency = 200.0;
@@ -90,46 +90,46 @@ void transform (long signalLength) {
                       + cos(2.0 * PI * signalFrequency3 * signalTime)
                       + (((double) (rand() % 2000000) - 1000000.0) / 2000000.0);
         h_data[i].y = 0;
-        
+
         signalTime += samplingPeriod;
     }
-    
+
     // (2) Copy data from host to GPU
     cudaMemcpy(d_data, h_data, sizeof(cuDoubleComplex)*signalLength, cudaMemcpyHostToDevice);
-    
+
     // Plan for running the FFT
     cufftPlan3d(&plan, signalLength, 1, 1, CUFFT_Z2Z);
-    
+
     // (3) Do an FFT on the data
     cufftExecZ2Z(plan, d_data, d_data, CUFFT_FORWARD);
     // Wait for all threads to finish
-    cudaThreadSynchronize();
-    
+    cudaDeviceSynchronize();
+
     // (4a) Normalise data: calculate magnitude
     CalcMagnitude<<<blocksParallel, threadsParallel>>>(d_data);
     // Wait for all threads to finish
-    cudaThreadSynchronize();
-    
+    cudaDeviceSynchronize();
+
     // (4b) Normalise data: find maximum
     FindMaximum<<<blocksSequential, threadsSequential>>>(d_data, signalLength);
     // Wait for all threads to finish (only one thread but can't hurt)
-    cudaThreadSynchronize();
-    
+    cudaDeviceSynchronize();
+
     // (4c) Normalise data: divide all by maximum
     Normalise<<<blocksParallel, threadsParallel>>>(d_data);
     // Wait for all threads to finish
-    cudaThreadSynchronize();
-    
+    cudaDeviceSynchronize();
+
     // (5) Copy data from GPU to host
     cudaMemcpy(h_data, d_data, sizeof(cuDoubleComplex) * signalLength, cudaMemcpyDeviceToHost);
-    
+
     // Output data to a text file
     FILE *fp = fopen("GpuSignalData_frequencydomain.txt", "w");
     for (i = 0; i < signalLength; i++) {
         fprintf(fp, "%f\n", h_data[i].x);
     }
     fclose(fp);
-    
+
     // Clean up memory no longer needed
     cufftDestroy(plan);
     cudaFree(d_data);
@@ -142,6 +142,6 @@ void transform (long signalLength) {
 // -----------------
 int main(int argc, char** argv) {
     transform(4096);
-    
+
     return 0;
 }

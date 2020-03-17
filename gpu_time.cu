@@ -37,7 +37,7 @@ __global__ void CalcMagnitude(cuDoubleComplex *data) {
 __global__ void FindMaximum(cuDoubleComplex *data, long signalLength) {
     // use data[0].y as storage for maximum value
     data[0].y = 0;
-    
+
     int i;
     for (i = 0; i < signalLength; i++) {
         if (data[i].x > data[0].y) {
@@ -64,19 +64,19 @@ long transform (long signalLength) {
     cuDoubleComplex *d_data, *h_data;
     cufftHandle plan;
     struct timeval start, end;
-    
+
     // Multiple blocks and threads for parallel computation
     dim3 blocksParallel(ceil(((double)signalLength)/((double)MAX_THREADS_PER_BLOCK)), 1, 1);
     dim3 threadsParallel(MAX_THREADS_PER_BLOCK, 1, 1);
     // Single block and thread for sequential computation
     dim3 blocksSequential(1, 1, 1);
     dim3 threadsSequential(1, 1, 1);
-    
+
     // Allocate host side matrix
     h_data = (cuDoubleComplex *) malloc(sizeof(cuDoubleComplex) * signalLength);
     // Allocate GPU side matrix
     cudaMalloc((void**) &d_data, sizeof(cuDoubleComplex) * signalLength);
-    
+
     // (1) Generate set of data:
     // 3 sinusoids at 25, 50, 75 Hz + random noise.
     double samplingFrequency = 200.0;
@@ -92,48 +92,48 @@ long transform (long signalLength) {
                       + cos(2.0 * PI * signalFrequency3 * signalTime)
                       + (((double) (rand() % 2000000) - 1000000.0) / 2000000.0);
         h_data[i].y = 0;
-        
+
         signalTime += samplingPeriod;
     }
-    
+
     // Plan for running the FFT
     cufftPlan3d(&plan, signalLength, 1, 1, CUFFT_Z2Z);
-    
+
     // ---- START PERFORMANCE COMPARISON ----
     gettimeofday(&start, NULL);
-    
+
     // (2) Copy data from host to GPU
     cudaMemcpy(d_data, h_data, sizeof(cuDoubleComplex)*signalLength, cudaMemcpyHostToDevice);
-    
+
     // (3) Do an FFT on the data
     cufftExecZ2Z(plan, d_data, d_data, CUFFT_FORWARD);
     // Wait for all threads to finish
-    cudaThreadSynchronize();
-    
+    cudaDeviceSynchronize();
+
     // (4a) Normalise data: calculate magnitude
     CalcMagnitude<<<blocksParallel, threadsParallel>>>(d_data);
     // Wait for all threads to finish
-    cudaThreadSynchronize();
+    cudaDeviceSynchronize();
     // (4b) Normalise data: find maximum
     FindMaximum<<<blocksSequential, threadsSequential>>>(d_data, signalLength);
     // Wait for all threads to finish (only one thread but can't hurt)
-    cudaThreadSynchronize();
+    cudaDeviceSynchronize();
     // (4c) Normalise data: divide all by maximum
     Normalise<<<blocksParallel, threadsParallel>>>(d_data);
     // Wait for all threads to finish
-    cudaThreadSynchronize();
-    
+    cudaDeviceSynchronize();
+
     // (5) Copy data from GPU to host
     cudaMemcpy(h_data, d_data, sizeof(cuDoubleComplex) * signalLength, cudaMemcpyDeviceToHost);
-    
+
     // ---- END PERFORMANCE COMPARISON ----
     gettimeofday(&end, NULL);
-    
+
     // Clean up memory no longer needed
     cufftDestroy(plan);
     cudaFree(d_data);
     free(h_data);
-    
+
     return ((end.tv_sec - start.tv_sec)*1000000 + (end.tv_usec - start.tv_usec));
 }
 
@@ -146,7 +146,7 @@ double average(long data[], long dataLength) {
     for (i = 0; i < dataLength; i++) {
         sum += data[i];
     }
-    
+
     return (sum / dataLength);
 }
 
@@ -159,7 +159,7 @@ int main(int argc, char** argv) {
     long numIterations_small = 10;
     long numIterations_large = 500;
     long signalLength, iteration, iterationResult[numIterations_large];
-    
+
     // Perform FFT for a range of signal lengths
     for (signalLength = 1; signalLength <= 4096; signalLength++) {
         // Do more iterations for tests that take less time
@@ -180,11 +180,11 @@ int main(int argc, char** argv) {
             // Average the results and output to a text file
             fprintf(fp, "%li\t%f\n", signalLength, average(iterationResult, numIterations_small));
         }
-        
+
         printf("%li\n", signalLength);
     }
-    
+
     fclose(fp);
-    
+
     return 0;
 }
