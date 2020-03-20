@@ -13,7 +13,7 @@ cpu = data_file1[:]
 plt.plot(matrixsize,cpu)
 plt.legend(['freq'],loc='best')
 plt.xlabel('freq')
-plt.ylabel('y')
+plt.ylabel('magnitude')
 plt.show()
 
 # plt.semilogy(matrixsize,cpu,matrixsize,gpu)

@@ -9,14 +9,16 @@ matrixsize = data_file1[:,0]
 gpu = data_file2[:,1]
 cpu = data_file1[:,1]
 
+print(matrixsize)
+
 plt.plot(matrixsize,cpu,matrixsize,gpu)
 plt.legend(['CPU','GPU'],loc='best')
-plt.xlabel('N')
+plt.xlabel('r')
 plt.ylabel('time')
 plt.show()
 
 plt.semilogy(matrixsize,cpu,matrixsize,gpu)
 plt.legend(['CPU','GPU'],loc='best')
-plt.xlabel('N')
+plt.xlabel('r')
 plt.ylabel('time')
 plt.show()

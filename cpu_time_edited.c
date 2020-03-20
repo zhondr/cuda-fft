@@ -4,12 +4,12 @@
  * Date: 4 October 2012
  *
  * Uses fftw library to perform FFTs sequentially using the CPU.
- * Outputs the data for a 4096-element FFT to a text file.
+ * Outputs the time taken for FFTs (varying the array length) to a text file.
  *
  * Compile using:
- * gcc cpu_signal.c -lfftw3 -lm -o cpu_signal
+ * gcc cpu_time.c -lfftw3 -lm -o cpu_time
  * Run using:
- * ./cpu_signal
+ * ./cpu_time
  *
  * Based on:
  * http://marburg-md.googlecode.com/svn-history/r22/trunk/basti/stuff/better_dft.c
@@ -53,12 +53,14 @@ void Normalise(fftw_complex *data, long signalLength) {
 }
 
 // Function called from main to do an FFT on a signal of length "signalLength".
+// Returns time taken in microseconds
 // (1) Generate set of data to be transformed
 // (2) Do an FFT on the data
 // (3) Normalise data
-void transform (long signalLength) {
+long transform (long signalLength) {
     fftw_complex *data;
     fftw_plan plan;
+    struct timeval start, end;
 
     // Allocate data matrix
     data = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * signalLength);
@@ -85,6 +87,9 @@ void transform (long signalLength) {
     // Plan for running the FFT
     plan = fftw_plan_dft_3d(signalLength, 1, 1, data, data, FFTW_FORWARD, FFTW_ESTIMATE);
 
+    // ---- START PERFORMANCE COMPARISON ----
+    gettimeofday(&start, NULL);
+
     // (2) Do an FFT on the data
     fftw_execute(plan);
 
@@ -95,16 +100,28 @@ void transform (long signalLength) {
     // (3c) Normalise data: divide all by maximum
     Normalise(data, signalLength);
 
-    // Output data to a text file
-    FILE *fp = fopen("CpuSignalData_frequencydomain.txt", "w");
-    for (i = 0; i < signalLength; i++) {
-        fprintf(fp, "%f\n", data[i][0]);
-    }
-    fclose(fp);
+    // ---- END PERFORMANCE COMPARISON ----
+    gettimeofday(&end, NULL);
 
     // Clean up memory no longer needed
     fftw_destroy_plan(plan);
     fftw_free(data);
+
+    return ((end.tv_sec - start.tv_sec)*1000000 + (end.tv_usec - start.tv_usec));
+}
+
+// Calculate the average for a set of data
+// Input the set of data "data[]", and length of this data "dataLength"
+// Outputs the average
+double average(long data[], long dataLength) {
+    double sum = 0;
+    int i;
+    for (i = 0; i < dataLength; i++) {
+        printf("iteration i - %li\n", data[i]);
+        sum += data[i];
+    }
+
+    return (sum / dataLength);
 }
 
 
@@ -112,7 +129,38 @@ void transform (long signalLength) {
 // Main program loop
 // -----------------
 int main(int argc, char** argv) {
-    transform(2048);
+    FILE *fp = fopen("CpuTimeData_total.txt", "w");
+    long numIterations_small = 50;
+    long numIterations_large = 50;
+    long sig, signalLength, iteration, iterationResult[numIterations_large];
+
+    // Perform FFT for a range of signal lengths
+    for (sig = 1; sig <= 11; sig++) {
+        // Do more iterations for tests that take less time
+        signalLength=pow(2,sig);
+        printf("%li\n", signalLength);
+        if (signalLength <= 64) {
+            for (iteration = 0; iteration < numIterations_large; iteration++) {
+                // Perform transform, and store result in array element
+                iterationResult[iteration] = transform(signalLength);
+            }
+            // Average the results and output to a text file
+            fprintf(fp, "%li\t%f\n", signalLength, average(iterationResult, numIterations_large));
+        }
+        // Do less iterations for tests that take longer
+        else {
+            for (iteration = 0; iteration < numIterations_small; iteration++) {
+                // Perform transform, and store result in array element
+                iterationResult[iteration] = transform(signalLength);
+            }
+            // Average the results and output to a text file
+            fprintf(fp, "%li\t%f\n", signalLength, average(iterationResult, numIterations_small));
+        }
+
+
+    }
+
+    fclose(fp);
 
     return 0;
 }

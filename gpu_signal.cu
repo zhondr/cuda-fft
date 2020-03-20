@@ -7,7 +7,7 @@
  * Outputs the data for a 4096-element FFT to a text file.
  *
  * Compile using:
- * nvcc gpu_signal.cu -arch=sm_20 -lcufft -o gpu_signal
+ * nvcc gpu_signal.cu -arch=sm_61 -lcufft -o gpu_signal
  * Run using:
  * ./gpu_signal
  *
@@ -141,7 +141,7 @@ void transform (long signalLength) {
 // Main program loop
 // -----------------
 int main(int argc, char** argv) {
-    transform(4096);
+    transform(2048);
 
     return 0;
 }
