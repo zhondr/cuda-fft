@@ -19,7 +19,8 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
+//#include <sys/time.h>
+#include <time.h>
 
 #define MAX_THREADS_PER_BLOCK 1024
 #define PI 3.14159265359
@@ -60,10 +61,11 @@ __global__ void Normalise(cuDoubleComplex *data) {
 // (3) Do an FFT on the data
 // (4) Normalise data
 // (5) Copy data from GPU to host
-long transform (long signalLength) {
+double transform (long signalLength) {
     cuDoubleComplex *d_data, *h_data;
     cufftHandle plan;
-    struct timeval start, end;
+    //struct timeval start, end;
+    clock_t begin,end;
 
     // Multiple blocks and threads for parallel computation
     dim3 blocksParallel(ceil(((double)signalLength)/((double)MAX_THREADS_PER_BLOCK)), 1, 1);
@@ -100,7 +102,8 @@ long transform (long signalLength) {
     cufftPlan3d(&plan, signalLength, 1, 1, CUFFT_Z2Z);
 
     // ---- START PERFORMANCE COMPARISON ----
-    gettimeofday(&start, NULL);
+    //gettimeofday(&start, NULL);
+    begin = clock();
 
     // (2) Copy data from host to GPU
     cudaMemcpy(d_data, h_data, sizeof(cuDoubleComplex)*signalLength, cudaMemcpyHostToDevice);
@@ -127,28 +130,31 @@ long transform (long signalLength) {
     cudaMemcpy(h_data, d_data, sizeof(cuDoubleComplex) * signalLength, cudaMemcpyDeviceToHost);
 
     // ---- END PERFORMANCE COMPARISON ----
-    gettimeofday(&end, NULL);
+    //gettimeofday(&end, NULL);
+    end = clock();
 
     // Clean up memory no longer needed
     cufftDestroy(plan);
     cudaFree(d_data);
     free(h_data);
 
-    return ((end.tv_sec - start.tv_sec)*1000000 + (end.tv_usec - start.tv_usec));
+    //return ((end.tv_sec - start.tv_sec)*1000000 + (end.tv_usec - start.tv_usec));
+    //printf("%lf\n", ((double)(end - begin) / CLOCKS_PER_SEC));
+    return ((double)(end - begin) / CLOCKS_PER_SEC)*1000000;
 }
 
 // Calculate the average for a set of data
 // Input the set of data "data[]", and length of this data "dataLength"
 // Outputs the average
-double average(long data[], long dataLength) {
+double average(double data[], long dataLength) {
     double sum = 0;
     int i;
     for (i = 0; i < dataLength; i++) {
-        //printf("iteration i - %li\n", data[i]);
+        //printf("iteration i - %lf\n", data[i]);
         sum += data[i];
     }
 
-    return (sum / dataLength);
+    return ((double)(sum / dataLength));
 }
 
 
@@ -159,7 +165,8 @@ int main(int argc, char** argv) {
     FILE *fp = fopen("GpuTimeData_total.txt", "w");
     long numIterations_small = 50;
     long numIterations_large = 50;
-    long sig, signalLength, iteration, iterationResult[numIterations_large];
+    long sig, signalLength, iteration;
+    double iterationResult[numIterations_large];
 
     // Perform FFT for a range of signal lengths
     for (sig = 1; sig <= 11; sig++) {
@@ -173,7 +180,7 @@ int main(int argc, char** argv) {
                 iterationResult[iteration] = transform(signalLength);
             }
             // Average the results and output to a text file
-            fprintf(fp, "%li\t%f\n", signalLength, average(iterationResult, numIterations_large));
+            fprintf(fp, "%li\t%lf\n", signalLength, average(iterationResult, numIterations_large));
         }
         // Do less iterations for tests that take longer
         else {
@@ -182,7 +189,7 @@ int main(int argc, char** argv) {
                 iterationResult[iteration] = transform(signalLength);
             }
             // Average the results and output to a text file
-            fprintf(fp, "%li\t%f\n", signalLength, average(iterationResult, numIterations_small));
+            fprintf(fp, "%li\t%lf\n", signalLength, average(iterationResult, numIterations_small));
         }
 
 

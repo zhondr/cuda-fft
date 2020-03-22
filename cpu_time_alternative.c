@@ -19,7 +19,8 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
+//#include <sys/time.h>
+#include <time.h>
 
 #define PI 3.14159265359
 
@@ -57,10 +58,11 @@ void Normalise(fftw_complex *data, long signalLength) {
 // (1) Generate set of data to be transformed
 // (2) Do an FFT on the data
 // (3) Normalise data
-long transform (long signalLength) {
+double transform (long signalLength) {
     fftw_complex *data;
     fftw_plan plan;
-    struct timeval start, end;
+    //struct timeval start, end;
+    clock_t begin,end;
 
     // Allocate data matrix
     data = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * signalLength);
@@ -88,7 +90,8 @@ long transform (long signalLength) {
     plan = fftw_plan_dft_3d(signalLength, 1, 1, data, data, FFTW_FORWARD, FFTW_ESTIMATE);
 
     // ---- START PERFORMANCE COMPARISON ----
-    gettimeofday(&start, NULL);
+    //gettimeofday(&start, NULL);
+    begin = clock();
 
     // (2) Do an FFT on the data
     fftw_execute(plan);
@@ -101,27 +104,29 @@ long transform (long signalLength) {
     Normalise(data, signalLength);
 
     // ---- END PERFORMANCE COMPARISON ----
-    gettimeofday(&end, NULL);
+    //gettimeofday(&end, NULL);
+    end = clock();
 
     // Clean up memory no longer needed
     fftw_destroy_plan(plan);
     fftw_free(data);
 
-    return ((end.tv_sec - start.tv_sec)*1000000 + (end.tv_usec - start.tv_usec));
+    //return ((end.tv_sec - start.tv_sec)*1000000 + (end.tv_usec - start.tv_usec));
+    return ((double)(end - begin) / CLOCKS_PER_SEC)*1000000;
 }
 
 // Calculate the average for a set of data
 // Input the set of data "data[]", and length of this data "dataLength"
 // Outputs the average
-double average(long data[], long dataLength) {
+double average(double data[], long dataLength) {
     double sum = 0;
     int i;
     for (i = 0; i < dataLength; i++) {
-        //printf("iteration i - %li\n", data[i]);
+        //printf("iteration i - %lf\n", data[i]);
         sum += data[i];
     }
 
-    return (sum / dataLength);
+    return ((double)(sum / dataLength));
 }
 
 
@@ -132,7 +137,8 @@ int main(int argc, char** argv) {
     FILE *fp = fopen("CpuTimeData_total.txt", "w");
     long numIterations_small = 50;
     long numIterations_large = 50;
-    long sig, signalLength, iteration, iterationResult[numIterations_large];
+    long sig, signalLength, iteration;
+    double iterationResult[numIterations_large];
 
     // Perform FFT for a range of signal lengths
     for (sig = 1; sig <= 11; sig++) {
@@ -145,7 +151,7 @@ int main(int argc, char** argv) {
                 iterationResult[iteration] = transform(signalLength);
             }
             // Average the results and output to a text file
-            fprintf(fp, "%li\t%f\n", signalLength, average(iterationResult, numIterations_large));
+            fprintf(fp, "%li\t%lf\n", signalLength, average(iterationResult, numIterations_large));
         }
         // Do less iterations for tests that take longer
         else {
@@ -154,7 +160,7 @@ int main(int argc, char** argv) {
                 iterationResult[iteration] = transform(signalLength);
             }
             // Average the results and output to a text file
-            fprintf(fp, "%li\t%f\n", signalLength, average(iterationResult, numIterations_small));
+            fprintf(fp, "%li\t%lf\n", signalLength, average(iterationResult, numIterations_small));
         }
 
 
